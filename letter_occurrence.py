@@ -1,16 +1,11 @@
-
-# Get first names from the user
-names = input("Enter first name: ")
-letter=names.split()
-
-# Initialize counter
-count_a = 0
-
-# Loop through each name and each character
+names = []
+count = int(input("Total number of names want to enter:"))
+for i in range(count):
+    name = input("Enter name:")
+    names.append(name)
+a_count = 0
 for name in names:
-    for char in name:
-        if char == 'a':
-            count_a += 1
-
-# Display the result
-print("Total occurrences of 'a':", count_a)
+    a_count += name.count('a')
+    a_count += name.count('A')
+print("List of names:",names)
+print("Total occurrences of 'a':",a_count)
