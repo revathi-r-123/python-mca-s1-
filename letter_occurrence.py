@@ -1,6 +1,6 @@
 names = []
 count = int(input("Total number of names want to enter:"))
-for name in range(count):
+for i in range(count):
     name = input("Enter name:")
     names.append(name)
 a_count = 0
