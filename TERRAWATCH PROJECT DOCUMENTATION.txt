@@ -1,0 +1,596 @@
+TERRAWATCH PROJECT DOCUMENTATION
+================================
+
+1. PROJECT TITLE
+----------------
+TerraWatch - Community Environmental Issue Reporting and Municipal Operations System
+
+2. PROJECT OVERVIEW
+-------------------
+TerraWatch is a role-based Django web application for reporting, reviewing, inspecting,
+tracking, and resolving environmental and civic issues. Citizens submit reports about
+waste dumping, land clearance, or stagnant water. Authorities review reports and record
+inspections. HKS (Haritha Karma Sena) workers handle assigned maintenance work, update
+their availability, and record daily attendance. Local-body administrators manage
+authority and worker accounts and monitor operational statistics.
+
+The system provides separate dashboards and permissions for:
+
+- Citizen: submit issues, view personal reports, receive notifications, and submit feedback.
+- Authority: review reports, record inspections, monitor maintenance, compliance, and analytics.
+- HKS Worker: view assigned tasks, mark attendance, and update availability.
+- Local-body Admin: manage authority and worker accounts and monitor reports, workers,
+  attendance, tasks, and analytics.
+
+3. TECHNOLOGY STACK
+-------------------
+Backend:
+- Python
+- Django 6.1
+- Django authentication and session framework
+- Django templates
+
+Database:
+- MySQL
+- Database name configured in the project: terrawatch_db
+- Host: localhost
+- Port: 3306
+- Django ORM is used for database access.
+
+Frontend:
+- HTML5
+- CSS embedded in Django templates
+- Django Template Language
+
+Supporting packages:
+- mysqlclient: MySQL database driver
+- Pillow: image handling for report photographs
+- asgiref and sqlparse: Django dependencies
+
+Project application:
+- Django project package: TerraWatch
+- Django application: watch
+- Main project entry point: manage.py
+
+4. PROJECT STRUCTURE
+--------------------
+TerraWatch/
+|
++-- manage.py                         Django command-line entry point
++-- db.sqlite3                        Local file present; settings use MySQL
++-- TerraWatch/
+|   +-- settings.py                   Project configuration
+|   +-- urls.py                       Root URL configuration
+|   +-- asgi.py                       ASGI deployment entry point
+|   +-- wsgi.py                       WSGI deployment entry point
+|   +-- __init__.py
++-- watch/
+|   +-- models.py                     Database models
+|   +-- views.py                      Request handling and business workflow
+|   +-- urls.py                       Application routes
+|   +-- admin.py                      Django admin registrations
+|   +-- middleware.py                 Authenticated-page cache protection
+|   +-- tests.py                      Test module
+|   +-- migrations/                   Database schema migrations
++-- templates/
+	+-- base.html                     Shared layout and role navigation
+	+-- home.html                     Public home page
+	+-- login_page.html               Login page
+	+-- register.html                 Registration page
+	+-- citizen_dashboard.html
+	+-- report_issue.html
+	+-- my_report.html
+	+-- authority_dashboard.html
+	+-- admin_dashboard.html
+	+-- worker_dashboard.html
+	+-- additional role-specific pages
+
+5. USER ROLES AND ACCESS CONTROL
+--------------------------------
+Authentication is handled by django.contrib.auth.models.User. A UserProfile record stores
+the application role for a normal user. Superusers are treated as local-body administrators.
+
+Role routing after successful login:
+
+- Superuser -> admin/dashboard/
+- UserProfile.role = citizen -> citizen/dashboard/
+- UserProfile.role = authority -> authority/dashboard/
+- UserProfile.role = worker -> worker/dashboard/
+
+Access control implementation:
+
+- @login_required protects authenticated pages.
+- admin_required permits only superusers.
+- Role checks in views confirm that the logged-in user has the correct UserProfile role.
+- Unauthorized users receive an access-denied message and are redirected to login.
+- The custom no-cache middleware adds no-store headers to authenticated pages and auth
+  pages so that browser Back cannot restore a protected dashboard after logout.
+
+6. COMPLETE APPLICATION WORKFLOW
+---------------------------------
+
+6.1 Public and authentication workflow
+
+1. A visitor opens the home page.
+2. A new user submits the registration form.
+3. Django creates an authentication User.
+4. TerraWatch creates a UserProfile with the citizen role.
+5. The user submits username and password on the login page.
+6. Django authenticates the credentials and creates a session.
+7. The user is redirected according to superuser status or profile role.
+8. On logout, Django clears the session and shows the login page.
+9. Authenticated and authentication-related responses are marked no-cache/no-store.
+
+6.2 Citizen issue reporting workflow
+
+1. Citizen opens Report an Issue.
+2. Citizen selects Waste Dumping, Land Clearance, or Stagnant Water.
+3. Citizen enters the location and optional description and photograph.
+4. The view validates issue type and location.
+5. A Report row is created with citizen, derived title, Submitted status,
+   Medium priority by default, and the current reported date.
+6. The citizen is redirected to My Reports.
+7. The citizen can open a report detail page and view only their own report.
+
+6.3 Authority inspection workflow
+
+1. Authority opens Manage Reports and views submitted reports.
+2. Authority selects a report on the Inspection page.
+3. Authority enters inspection status and remarks.
+4. An Inspection row is created or updated for the report.
+5. Report status changes as follows:
+   - Verified -> Verified
+   - Not Verified -> Rejected
+   - Requires Action -> Under Inspection
+6. The authority can view maintenance tasks, compliance records, notifications,
+   and analytics.
+
+6.4 Maintenance and HKS worker workflow
+
+1. Maintenance tasks are linked to a Report.
+2. A task can be unassigned or assigned to a User with the worker role.
+3. A worker opens Assigned Tasks and sees tasks assigned to that worker.
+4. Task statuses are Pending Assignment, Assigned, In Progress, Completed, or Rework.
+5. A task can store assigned date, completed date, and remarks.
+6. The worker updates availability as available, busy, or off duty.
+7. The worker records Present or Absent attendance for the current date.
+8. A database constraint prevents more than one attendance row for the same worker
+   on the same date.
+
+6.5 Administrator workflow
+
+1. Superuser opens the admin dashboard.
+2. Dashboard counts reports, pending reports, authorities, workers, attendance,
+   available workers, and completed tasks.
+3. Admin creates authority accounts through Authority Management.
+4. Admin creates worker accounts through HKS Workforce management.
+5. Admin can activate or deactivate authority accounts.
+6. Admin monitors attendance and maintenance task records.
+7. Admin and authority users can access analytics according to role permissions.
+
+6.6 Notification and feedback workflow
+
+- Notifications are stored against a User and displayed for the logged-in user.
+- Each notification contains a message, creation time, and read/unread flag.
+- Feedback is submitted by a logged-in user and stored with its message and timestamp.
+
+7. REPORT STATUS LIFECYCLE
+---------------------------
+
+					+----------------+
+					|    Submitted   |
+					+--------+-------+
+							 |
+							 v
+					+------------------+
+					| Under Inspection |
+					+---+----------+---+
+						|          |
+		  Requires Action          | Not Verified
+						|          v
+						|   +-------------+
+						|   |   Rejected  |
+						|   +-------------+
+						v
+				 +--------------+
+				 |   Verified   |
+				 +------+-------+
+						|
+						v
+				 +--------------+
+				 |  In Progress |
+				 +------+-------+
+						|
+						v
+				 +--------------+
+				 |   Resolved   |
+				 +--------------+
+
+The inspection view directly implements the inspection status transitions. In Progress
+and Resolved are available report statuses for the wider maintenance and resolution flow.
+
+8. DATABASE DESIGN
+------------------
+
+8.1 Database configuration
+
+Django settings configure the default database as MySQL:
+
+- ENGINE: django.db.backends.mysql
+- NAME: terrawatch_db
+- USER: root
+- HOST: localhost
+- PORT: 3306
+
+The actual database password is configured in settings.py and is intentionally not
+repeated here. In production, credentials should be stored in environment variables
+or a secrets manager.
+
+8.2 Django built-in User table
+
+The built-in authentication User model stores username, password hash, email, first name,
+active status, and superuser status.
+
+Relationships:
+- One User has one UserProfile.
+- One User can create many Reports.
+- One User can perform many Inspections.
+- One User can be assigned many MaintenanceTasks.
+- One User can have many Attendance records.
+- One User can receive many Notifications.
+- One User can submit many Feedback records.
+
+8.3 UserProfile table
+
+Purpose: role and worker-specific profile data.
+
+Fields:
+- id: primary key
+- user_id: one-to-one foreign key to User; cascade delete
+- role: citizen, authority, or worker
+- phone: optional phone number
+- availability: available, busy, or off_duty; mainly used for workers
+
+8.4 Report table
+
+Purpose: environmental issues submitted by citizens.
+
+Fields:
+- id: primary key
+- citizen_id: foreign key to User; cascade delete
+- issue_type: Waste Dumping, Land Clearance, or Stagnant Water
+- title: optional title; normally derived from issue type
+- description: optional details
+- location: required issue location
+- image: optional uploaded image stored under reports/
+- reported_date: automatically assigned creation time
+- status: Submitted, Under Inspection, Verified, In Progress, Resolved, or Rejected
+- priority: Low, Medium, or High; default Medium
+
+8.5 Inspection table
+
+Purpose: authority inspection results for reports.
+
+Fields:
+- id: primary key
+- report_id: one-to-one foreign key to Report; cascade delete
+- inspected_by_id: optional foreign key to User; set null on user deletion
+- inspection_status: Verified, Not Verified, or Requires Action
+- remarks: optional inspection notes
+- inspected_date: automatically assigned creation time
+
+8.6 MaintenanceTask table
+
+Purpose: work required to resolve a report.
+
+Fields:
+- id: primary key
+- report_id: foreign key to Report; cascade delete
+- worker_id: optional foreign key to User; set null if worker is deleted
+- task_type: Waste Removal, Land Clearance, or Stagnant Water Removal
+- status: Pending Assignment, Assigned, In Progress, Completed, or Rework
+- assigned_date: automatically assigned creation time
+- completed_date: optional completion time
+- remarks: optional task notes
+
+8.7 Attendance table
+
+Purpose: daily HKS worker attendance.
+
+Fields:
+- id: primary key
+- worker_id: foreign key to User; cascade delete
+- date: date, defaulting to the current local date
+- status: Present or Absent
+
+Constraint:
+- Unique combination of worker_id and date.
+- A worker can have only one attendance record per day.
+
+8.8 Compliance table
+
+Purpose: landowner compliance information related to a report.
+
+Fields:
+- id: primary key
+- report_id: one-to-one foreign key to Report; cascade delete
+- landowner_name: required name
+- landowner_contact: optional contact
+- notice_date: optional notice date
+- deadline: optional compliance deadline
+- status: Notice Issued, Pending, Complied, or Non-Complied
+- remarks: optional notes
+
+8.9 Notification table
+
+Purpose: messages for individual users.
+
+Fields:
+- id: primary key
+- user_id: foreign key to User; cascade delete
+- message: notification text
+- created_at: automatically assigned creation time
+- is_read: boolean, default False
+
+8.10 Feedback table
+
+Purpose: feedback submitted by users.
+
+Fields:
+- id: primary key
+- user_id: foreign key to User; cascade delete
+- message: feedback text
+- submitted_at: automatically assigned submission time
+
+9. DATA FLOW DIAGRAM (DFD)
+---------------------------
+
+9.1 Context-level DFD
+
++------------------+             +----------------------+
+|     Citizen      |             |  Authority / Admin   |
++--------+---------+             +----------+-----------+
+		 |                                  |
+		 | register, login, report,         | review, inspect,
+		 | feedback, view status             | manage, monitor
+		 v                                  v
++-----------------------------------------------------------+
+|                       TERRAWATCH                         |
+|  Authentication | Role Control | Reporting | Operations  |
++----------------------+-------------------+----------------+
+					   |
+					   | task updates, attendance,
+					   | availability, notifications
+					   v
+			  +--------+---------+
+			  |    HKS Worker    |
+			  +------------------+
+
+					   |
+					   | ORM queries and updates
+					   v
+			  +------------------+
+			  |   MySQL Database  |
+			  +------------------+
+
+9.2 Detailed level-1 DFD
+
+[Citizen]
+	|
+	| credentials / registration data
+	v
+(1. Authentication and Role Routing) -----> [Django User + Session]
+	|
+	| citizen report form
+	v
+(2. Issue Reporting)
+	|
+	+---- create/update ----> [Report]
+	+---- read own reports -> [Report]
+	+---- submit -----------> [Feedback]
+	+---- read -------------> [Notification]
+
+[Authority]
+	|
+	+---- read reports ------> (3. Report Management)
+	+---- inspection data --> (4. Inspection Processing)
+								  |
+								  +---- create/update -> [Inspection]
+								  +---- update -------> [Report.status]
+	+---- monitor ----------> [MaintenanceTask]
+	+---- monitor ----------> [Compliance]
+	+---- view analytics ----> (5. Aggregation and Analytics)
+
+[Administrator]
+	|
+	+---- create accounts ---> [User + UserProfile]
+	+---- activate/deactivate -> [User.is_active]
+	+---- monitor -----------> [Report, Attendance, MaintenanceTask]
+
+[HKS Worker]
+	|
+	+---- view assigned -----> [MaintenanceTask]
+	+---- update availability -> [UserProfile.availability]
+	+---- mark attendance ---> [Attendance]
+
+[MySQL Database]
+	|
+	+---- query results ------> Django views
+								  |
+								  v
+							[Django Templates]
+								  |
+								  v
+							Browser response
+
+9.3 Data flow for an issue from submission to resolution
+
+1. Browser sends a POST request from report_issue.html.
+2. Django validates issue type and location.
+3. Report object is created by the Django ORM.
+4. MySQL stores the report.
+5. Authority requests the report list.
+6. Authority submits an inspection result.
+7. Django creates or updates Inspection and updates Report.status.
+8. A maintenance task can be associated with the report and assigned to a worker.
+9. Worker views the assigned task and updates work progress.
+10. Completion and report status are reflected in dashboards and analytics.
+
+10. ENTITY-RELATIONSHIP DIAGRAM (ERD)
+--------------------------------------
+
+The following text ERD shows the implemented entities and cardinality. USER refers to
+Django's built-in auth_user table.
+
+					   +----------------------+
+					   |         USER         |
+					   +----------------------+
+					   | PK id                |
+					   | username             |
+					   | password             |
+					   | email                |
+					   | first_name           |
+					   | is_active            |
+					   | is_superuser         |
+					   +----------+-----------+
+								  | 1
+								  | 1
+					   +----------v-----------+
+					   |     USER_PROFILE     |
+					   +----------------------+
+					   | PK id                |
+					   | FK user_id UNIQUE    |
+					   | role                 |
+					   | phone                |
+					   | availability         |
+					   +----------------------+
+
+USER 1 -------------------- N REPORT
+							   |
+							   +-- 1 INSPECTION
+							   |   PK id, FK report_id UNIQUE
+							   |   FK inspected_by_id, status, remarks, date
+							   |
+							   +-- 1 COMPLIANCE
+							   |   PK id, FK report_id UNIQUE
+							   |   landowner_name, contact, dates, status, remarks
+							   |
+							   +-- N MAINTENANCE_TASK
+								   PK id, FK report_id, FK worker_id
+								   task_type, status, dates, remarks
+
+USER 1 -------------------- N ATTENDANCE
+							   PK id, FK worker_id, date, status
+							   UNIQUE(worker_id, date)
+
+USER 1 -------------------- N NOTIFICATION
+							   PK id, FK user_id, message, created_at, is_read
+
+USER 1 -------------------- N FEEDBACK
+							   PK id, FK user_id, message, submitted_at
+
+REPORT entity attributes:
+- PK id
+- FK citizen_id -> USER.id
+- issue_type
+- title
+- description
+- location
+- image
+- reported_date
+- status
+- priority
+
+Relationship summary:
+- USER to USER_PROFILE: one-to-one.
+- USER to REPORT as citizen: one-to-many.
+- REPORT to INSPECTION: one-to-one.
+- REPORT to COMPLIANCE: one-to-one.
+- REPORT to MAINTENANCE_TASK: one-to-many.
+- USER to INSPECTION as inspector: one-to-many, optional on inspection records.
+- USER to MAINTENANCE_TASK as worker: one-to-many, optional on task records.
+- USER to ATTENDANCE: one-to-many.
+- USER to NOTIFICATION: one-to-many.
+- USER to FEEDBACK: one-to-many.
+
+11. ROUTE SUMMARY
+-----------------
+
+Public and authentication:
+- /                         Home
+- /login/                   Login
+- /register/                Register citizen
+- /logout/                  Logout
+
+Admin:
+- /admin/dashboard/         Admin dashboard
+- /admin/authority/         Authority management
+- /admin/hks/               HKS worker management
+- /admin/attendance/        Attendance monitoring
+- /admin/tasks/             Task monitoring
+
+Citizen:
+- /citizen/dashboard/       Citizen dashboard
+- /citizen/report-issue/    Submit report
+- /citizen/my-reports/      List own reports
+- /citizen/report/<id>/     Own report details
+
+Shared authenticated:
+- /notifications/           User notifications
+- /feedback/                Submit feedback
+
+Authority:
+- /authority/dashboard/     Authority dashboard
+- /authority/manage-reports/ Report list
+- /authority/inspection/    Record inspections
+- /authority/maintenance-tasks/ Maintenance task list
+- /authority/compliance/    Compliance list
+- /authority/analytics/     Report analytics
+
+HKS worker:
+- /worker/dashboard/        Worker dashboard
+- /worker/assigned-tasks/   Assigned task list
+- /worker/attendance/       Attendance page
+- /worker/availability/    Availability page
+
+12. SECURITY AND DATA-INTEGRITY NOTES
+--------------------------------------
+- Passwords are managed by Django's password hashing system.
+- Login-required views prevent unauthenticated access.
+- Role checks prevent users from accessing another role's dashboard.
+- Citizen report detail queries are filtered by citizen=request.user.
+- Foreign-key deletion behavior is defined per entity: CASCADE for dependent data,
+  SET_NULL where historical records should remain after a user is removed.
+- Attendance has a unique worker/date constraint.
+- Report image upload is optional and handled through Pillow/ImageField.
+- Production deployment should move SECRET_KEY and database credentials out of source code.
+- Production deployment should set DEBUG=False and configure ALLOWED_HOSTS.
+- CSRF middleware is enabled for form protection.
+
+13. DATABASE MIGRATIONS
+-----------------------
+The watch application contains migrations that progressively created and updated the schema:
+
+- 0001_initial: Feedback, Notification, Report
+- 0002_userprofile: UserProfile
+- 0003: related names and optional phone field updates
+- 0004: report image upload field
+- 0005: issue type, priority, attendance, compliance, inspection, and tasks
+- 0006: attendance date behavior and unique worker/date constraint
+- 0007: report form field adjustments
+
+Typical commands:
+
+	python manage.py makemigrations
+	python manage.py migrate
+	python manage.py runserver
+
+14. SUMMARY
+-----------
+TerraWatch connects citizen reporting with municipal environmental operations. The core
+record is Report. It is created by a citizen, inspected by an authority, optionally
+connected to compliance and maintenance records, and followed through worker activity
+until resolution. UserProfile provides role-specific behavior, while notifications,
+feedback, attendance, analytics, and administrator monitoring support the operation.
+
+END OF DOCUMENT
